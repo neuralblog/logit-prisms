@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.553">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2024-06-17">
+
+<title>Logit Prisms: Decomposing Transformer Outputs for Mechanistic Interpretability</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+  margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-dark.min.css" rel="prefetch" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+<meta name="mermaid-theme" content="default">
+<script src="site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+<script type="text/javascript">
+document.addEventListener('DOMContentLoaded', function() {
+  var mathElements = document.getElementsByClassName('math');
+  for (var i = 0; i < mathElements.length; i++) {
+    var mathElement = mathElements[i];
+    var parent = mathElement.parentNode;
+    if (parent.tagName !== 'TD' && !mathElement.classList.contains('inline')) {
+      var wrapper = document.createElement('div');
+      wrapper.style.overflow = 'auto';
+      wrapper.style.padding = '0';
+      wrapper.style.margin = '0';
+      parent.replaceChild(wrapper, mathElement);
+      wrapper.appendChild(mathElement);
+    }
+  }
+});
+</script>
+
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta name="citation_title" content="Logit Prisms: Decomposing Transformer Outputs for Mechanistic Interpretability">
+<meta name="citation_abstract" content="We introduce a straightforward yet effective method to break down transformer outputs into individual components. By treating the model&amp;amp;#039;s non-linear activations as constants, we can decompose the output in a linear fashion, expressing it as a sum of contributions. These contributions can be easily calculated using linear projections. We call this approach &amp;quot;logit prisms&quot; and apply it to analyze the residual streams, attention layers, and MLP layers within transformer models. Through two illustrative examples, we demonstrate how these prisms provide valuable insights into the inner workings of the `gemma-2b` model.">
+<meta name="citation_author" content="Thông Nguyễn">
+<meta name="citation_publication_date" content="2024-06-17">
+<meta name="citation_cover_date" content="2024-06-17">
+<meta name="citation_year" content="2024">
+<meta name="citation_online_date" content="2024-06-17">
+<meta name="citation_language" content="en">
+<meta name="citation_reference" content="citation_title=Literate programming;,citation_author=Donald E. Knuth;,citation_publication_date=1984-05;,citation_cover_date=1984-05;,citation_year=1984;,citation_fulltext_html_url=https://doi.org/10.1093/comjnl/27.2.97;,citation_issue=2;,citation_doi=10.1093/comjnl/27.2.97;,citation_issn=0010-4620;,citation_volume=27;,citation_journal_title=Comput. J.;,citation_publisher=Oxford University Press, Inc.;">
+<meta name="citation_reference" content="citation_title=Interpreting GPT: The logit lens;,citation_author=undefined nostalgebraist;,citation_publication_date=2020;,citation_cover_date=2020;,citation_year=2020;,citation_fulltext_html_url=https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens;,citation_publisher=lesswrong.com;">
+<meta name="citation_reference" content="citation_title=A mathematical framework for transformer circuits;,citation_author=Nelson Elhage;,citation_author=Neel Nanda;,citation_author=Catherine Olsson;,citation_author=Tom Henighan;,citation_author=Nicholas Joseph;,citation_author=Ben Mann;,citation_author=Amanda Askell;,citation_author=Yuntao Bai;,citation_author=Anna Chen;,citation_author=Tom Conerly;,citation_author=Nova DasSarma;,citation_author=Dawn Drain;,citation_author=Deep Ganguli;,citation_author=Zac Hatfield-Dodds;,citation_author=Danny Hernandez;,citation_author=Andy Jones;,citation_author=Jackson Kernion;,citation_author=Liane Lovitt;,citation_author=Kamal Ndousse;,citation_author=Dario Amodei;,citation_author=Tom Brown;,citation_author=Jack Clark;,citation_author=Jared Kaplan;,citation_author=Sam McCandlish;,citation_author=Chris Olah;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_journal_title=Transformer Circuits Thread;">
+<meta name="citation_reference" content="citation_title=Eliciting latent predictions from transformers with the tuned lens;,citation_author=Nora Belrose;,citation_author=Zach Furman;,citation_author=Logan Smith;,citation_author=Danny Halawi;,citation_author=Igor Ostrovsky;,citation_author=Lev McKinney;,citation_author=Stella Biderman;,citation_author=Jacob Steinhardt;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://arxiv.org/abs/2303.08112;">
+<meta name="citation_reference" content="citation_title=Interpretability in the wild: A circuit for indirect object identification in GPT-2 small;,citation_author=Kevin Wang;,citation_author=Alexandre Variengien;,citation_author=Arthur Conmy;,citation_author=Buck Shlegeris;,citation_author=Jacob Steinhardt;,citation_publication_date=2022;,citation_cover_date=2022;,citation_year=2022;,citation_fulltext_html_url=https://arxiv.org/abs/2211.00593;">
+<meta name="citation_reference" content="citation_title=Efficient estimation of word representations in vector space;,citation_author=Tomas Mikolov;,citation_author=Kai Chen;,citation_author=Greg Corrado;,citation_author=Jeffrey Dean;,citation_publication_date=2013;,citation_cover_date=2013;,citation_year=2013;,citation_fulltext_html_url=https://arxiv.org/abs/1301.3781;">
+<meta name="citation_reference" content="citation_title=MoEfication: Transformer feed-forward layers are mixtures of experts;,citation_author=Zhengyan Zhang;,citation_author=Yankai Lin;,citation_author=Zhiyuan Liu;,citation_author=Peng Li;,citation_author=Maosong Sun;,citation_author=Jie Zhou;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2110.01786;">
+<meta name="citation_reference" content="citation_title=ReLU strikes back: Exploiting activation sparsity in large language models;,citation_author=Iman Mirzadeh;,citation_author=Keivan Alizadeh;,citation_author=Sachin Mehta;,citation_author=Carlo C Del Mundo;,citation_author=Oncel Tuzel;,citation_author=Golnoosh Samei;,citation_author=Mohammad Rastegari;,citation_author=Mehrdad Farajtabar;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://arxiv.org/abs/2310.04564;">
+<meta name="citation_reference" content="citation_title=ReLU^2 wins: Discovering efficient activation functions for sparse LLMs;,citation_author=Zhengyan Zhang;,citation_author=Yixin Song;,citation_author=Guanghui Yu;,citation_author=Xu Han;,citation_author=Yankai Lin;,citation_author=Chaojun Xiao;,citation_author=Chenyang Song;,citation_author=Zhiyuan Liu;,citation_author=Zeyu Mi;,citation_author=Maosong Sun;,citation_publication_date=2024;,citation_cover_date=2024;,citation_year=2024;,citation_fulltext_html_url=https://arxiv.org/abs/2402.03804;">
+<meta name="citation_reference" content="citation_title=Transformer feed-forward layers are key-value memories;,citation_author=Mor Geva;,citation_author=Roei Schuster;,citation_author=Jonathan Berant;,citation_author=Omer Levy;,citation_publication_date=2021;,citation_cover_date=2021;,citation_year=2021;,citation_fulltext_html_url=https://arxiv.org/abs/2012.14913;">
+<meta name="citation_reference" content="citation_title=Progress measures for grokking via mechanistic interpretability;,citation_author=Neel Nanda;,citation_author=Lawrence Chan;,citation_author=Tom Lieberum;,citation_author=Jess Smith;,citation_author=Jacob Steinhardt;,citation_publication_date=2023;,citation_cover_date=2023;,citation_year=2023;,citation_fulltext_html_url=https://arxiv.org/abs/2301.05217;">
+<meta name="citation_reference" content="citation_title=Attention is all you need;,citation_author=Ashish Vaswani;,citation_author=Noam Shazeer;,citation_author=Niki Parmar;,citation_author=Jakob Uszkoreit;,citation_author=Llion Jones;,citation_author=Aidan N. Gomez;,citation_author=Lukasz Kaiser;,citation_author=Illia Polosukhin;,citation_publication_date=2017;,citation_cover_date=2017;,citation_year=2017;,citation_fulltext_html_url=https://arxiv.org/abs/1706.03762;">
+<meta name="citation_reference" content="citation_title=Language models are few-shot learners;,citation_author=Tom B. Brown;,citation_author=Benjamin Mann;,citation_author=Nick Ryder;,citation_author=Melanie Subbiah;,citation_author=Jared Kaplan;,citation_author=Prafulla Dhariwal;,citation_author=Arvind Neelakantan;,citation_author=Pranav Shyam;,citation_author=Girish Sastry;,citation_author=Amanda Askell;,citation_author=Sandhini Agarwal;,citation_author=Ariel Herbert-Voss;,citation_author=Gretchen Krueger;,citation_author=Tom Henighan;,citation_author=Rewon Child;,citation_author=Aditya Ramesh;,citation_author=Daniel M. Ziegler;,citation_author=Jeffrey Wu;,citation_author=Clemens Winter;,citation_author=Christopher Hesse;,citation_author=Mark Chen;,citation_author=Eric Sigler;,citation_author=Mateusz Litwin;,citation_author=Scott Gray;,citation_author=Benjamin Chess;,citation_author=Jack Clark;,citation_author=Christopher Berner;,citation_author=Sam McCandlish;,citation_author=Alec Radford;,citation_author=Ilya Sutskever;,citation_author=Dario Amodei;,citation_publication_date=2020;,citation_cover_date=2020;,citation_year=2020;,citation_fulltext_html_url=https://arxiv.org/abs/2005.14165;">
+</head>
+
+<body>
+
+<header id="title-block-header" class="quarto-title-block default toc-left page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">Logit Prisms: Decomposing Transformer Outputs for Mechanistic Interpretability</h1>
+          </div>
+
+    
+    <div class="quarto-title-meta-container">
+      <div class="quarto-title-meta-column-start">
+        
+        <div class="quarto-title-meta">
+
+                <div>
+            <div class="quarto-title-meta-heading">Author</div>
+            <div class="quarto-title-meta-contents">
+                        <p>Thông T. Nguyễn </p>
+                      </div>
+          </div>
+                
+                <div>
+            <div class="quarto-title-meta-heading">Published</div>
+            <div class="quarto-title-meta-contents">
+              <p class="date">June 17, 2024</p>
+            </div>
+          </div>
+          
+                
+              </div>
+      </div>
+      <div class="quarto-title-meta-column-end quarto-other-formats-target">
+      <div class="quarto-alternate-formats"><div class="quarto-title-meta-heading">Other Formats</div><div class="quarto-title-meta-contents"><p><a href="index.pdf"><i class="bi bi-file-pdf"></i>PDF</a></p></div></div></div>
+    </div>
+
+    <div>
+      <div class="abstract">
+        <div class="block-title">Abstract</div>
+        We introduce a straightforward yet effective method to break down transformer outputs into individual components. By treating the model’s non-linear activations as constants, we can decompose the output in a linear fashion, expressing it as a sum of contributions. These contributions can be easily calculated using linear projections. We call this approach “logit prisms” and apply it to analyze the residual streams, attention layers, and MLP layers within transformer models. Through two illustrative examples, we demonstrate how these prisms provide valuable insights into the inner workings of the <code>gemma-2b</code> model.
+      </div>
+    </div>
+
+
+    <div class="quarto-other-links-text-target">
+    </div>  </div>
+</header><div id="quarto-content" class="page-columns page-rows-contents page-layout-article toc-left">
+<div id="quarto-sidebar-toc-left" class="sidebar toc-left">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction"><span class="header-section-number">1</span> Introduction</a></li>
+  <li><a href="#method" id="toc-method" class="nav-link" data-scroll-target="#method"><span class="header-section-number">2</span> Method</a>
+  <ul class="collapse">
+  <li><a href="#residual-stream-decomposition" id="toc-residual-stream-decomposition" class="nav-link" data-scroll-target="#residual-stream-decomposition"><span class="header-section-number">2.1</span> Residual Stream Decomposition</a></li>
+  <li><a href="#attention-decomposition" id="toc-attention-decomposition" class="nav-link" data-scroll-target="#attention-decomposition"><span class="header-section-number">2.2</span> Attention Decomposition</a></li>
+  <li><a href="#mlp-decomposition" id="toc-mlp-decomposition" class="nav-link" data-scroll-target="#mlp-decomposition"><span class="header-section-number">2.3</span> MLP Decomposition</a></li>
+  </ul></li>
+  <li><a href="#examples" id="toc-examples" class="nav-link" data-scroll-target="#examples"><span class="header-section-number">3</span> Examples</a></li>
+  <li><a href="#related-work" id="toc-related-work" class="nav-link" data-scroll-target="#related-work"><span class="header-section-number">4</span> Related Work</a></li>
+  <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion"><span class="header-section-number">5</span> Conclusion</a></li>
+  </ul>
+</nav>
+</div>
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+</div>
+<main class="content quarto-banner-title-block" id="quarto-document-content">
+
+
+
+  
+
+
+<section id="introduction" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Introduction</h1>
+<div id="fig-logit-prism" class="quarto-figure quarto-figure-center quarto-float anchored" data-fig-cap="An illustration of a &quot;logit&quot; prism decomposing logit into different components (generated by DALL-E)" data-fig-align="center">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-logit-prism-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="logit3.webp" class="lightbox" data-glightbox="description: .lightbox-desc-1" data-gallery="quarto-lightbox-gallery-1"><img src="logit3.webp" class="img-fluid quarto-figure quarto-figure-center figure-img" data-fig-cap="An illustration of a &quot;logit&quot; prism decomposing logit into different components (generated by DALL-E)"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-logit-prism-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: An illustration of a “logit” prism decomposing logit into different components (generated by DALL-E)
+</figcaption>
+</figure>
+</div>
+<div style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;">
+<p><audio controls="" style="height: 40px; width: 250px;"> <source src="audio.wav" type="audio/wav"> </audio></p>
+</div>
+<p>The logit lens <span class="citation" data-cites="logitlens">(<a href="#ref-logitlens" role="doc-biblioref">nostalgebraist 2020</a>)</span> is a simple yet powerful tool for understanding how transformer models <span class="citation" data-cites="vaswani2017attention brown2020language">(<a href="#ref-vaswani2017attention" role="doc-biblioref">Vaswani et al. 2017</a>; <a href="#ref-brown2020language" role="doc-biblioref">Brown et al. 2020</a>)</span> make decisions. In this work, we extend the logit lens approach in a mathematically rigorous and effective way. By treating certain parts of the network activations as constants, we can leverage the linear properties within the network to break down the logit output into individual component contributions. Using this principle, we introduce simple “prisms” for the residual stream, attention layers, and MLP layers. These prisms allow us to calculate how much each component contributes to the final logit output.</p>
+<p>Our approach can be thought of as applying a series of prisms to the transformer network. Each prism in the sequence splits the logits from the previous prism into separate components. This enables us to see how different parts of the model—such as attention heads, MLP neurons, or input embeddings—influence the final output.</p>
+<p>To showcase the power of our method, we present two illustrative examples:</p>
+<ul>
+<li><p>In the first example, we examine how the gemma-2b model performs the simple factual retrieval task of retrieving a capital city from a country name. Our findings suggest that the model learns to encode information about country names and their capital cities in a way that allows the network to easily convert country embeddings into capital city unembeddings through a linear projection.</p></li>
+<li><p>The second example explores how the gemma-2b model adds two small numbers (ranging from 1 to 9). We uncover interesting insights into the workings of MLP layers. The network predicts output numbers using interpretable templates learned by MLP neurons. When multiple neurons are activated simultaneously, their predictions interfere with each other, ultimately producing a final prediction that peaks at the correct number.</p></li>
+</ul>
+</section>
+<section id="method" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Method</h1>
+<div class="cell" data-fig-width="4.5" data-layout-align="default">
+<div class="cell-output-display">
+<div id="fig-residual-stream" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-residual-stream-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div>
+<pre class="mermaid mermaid-js" data-label="fig-residual-stream">flowchart LR
+  A[Embed] --&gt; I(( ))
+  subgraph repeated N times
+  I --&gt; AttnNorm[Norm]
+  AttnNorm --&gt; B[Attention]
+  B --&gt; C((+))
+  I --&gt; C
+  C --&gt; MlpNorm[Norm]
+  MlpNorm --&gt; D[MLP]
+  D --&gt; E((+))
+  C --&gt; E
+  end
+  E --&gt; L[Norm]
+  L --&gt; Unembed
+</pre>
+</div>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-residual-stream-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: A typical decoder-only transformer network where the residual stream is iteratively refined by a sequence of attention and MLP layers. There are five main components: the input embedding (Embed), the normalization layers (Norm), the Attention layers, the MLP layers, and the unembedding layer (Unembed).
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>We introduce simple “prisms” that allow us to break down the output of transformer networks into individual components. The key idea is to treat nonlinear activations as constants, which enables us to calculate the contribution of any component in the network using a series of linear transformations. In the following subsections, we explore this approach in more detail.</p>
+<section id="residual-stream-decomposition" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="residual-stream-decomposition"><span class="header-section-number">2.1</span> Residual Stream Decomposition</h2>
+<p>In a typical decoder-only transformer architecture (see <a href="#fig-residual-stream" class="quarto-xref">Figure&nbsp;2</a>), the output logit can be expressed as: <span class="math display">\[
+\text{logits} = W_\text{unembed} \cdot  \text{diag}\left(w_{\text{norm}}\right) \cdot \frac{w_{\text{embed}} + \sum_{i=1}^N (a_i + m_i)}{s}
+\]</span> Here, <span class="math inline">\(W_\text{unembed} \in \mathbb{R}^{V\times d}\)</span> is the unembedding matrix, <span class="math inline">\(w_\text{embed}\)</span> is the token embedding vector, <span class="math inline">\(a_i\)</span> and <span class="math inline">\(m_i\)</span> denote the attention and MLP outputs at <span class="math inline">\(i\)</span>-th layer respectively, <span class="math inline">\(s\)</span> is a normalization factor (usually the root mean square of the denominator), and <span class="math inline">\(w_{\text{norm}}\)</span> is the scaling vector of the last normalization layer.</p>
+<p>By treating <span class="math inline">\(s\)</span> as a constant, we can break down the <span class="math inline">\(\text{logits}\)</span> into individual terms for each embed, attention and MLP layer: <span class="math display">\[
+\text{logits} = P \cdot w_{\text{embed}} + P \cdot a_1 + P \cdot m_1 + \cdots + P \cdot a_N + P \cdot m_N
+\]</span> where <span class="math inline">\(P\)</span> is the projection matrix: <span class="math display">\[
+P = W_{\text{unembed}} \cdot  \text{diag}\left(w_{\text{norm}}\right) \cdot \left(s^{-1} I\right)
+\]</span> Each term, like <span class="math inline">\(P \cdot a_1\)</span>, represents the individual contribution of the corresponding residual vector (<span class="math inline">\(a_1\)</span>) to the final logit score. The cumulative sum <span class="math inline">\(P \cdot w_{\text{embed}} + \sum_{i=1}^\ell P \cdot \left( a_i + m_i \right)\)</span> gives the model’s logit score up to layer <span class="math inline">\(\ell\)</span>.</p>
+</section>
+<section id="attention-decomposition" class="level2" data-number="2.2">
+<h2 data-number="2.2" class="anchored" data-anchor-id="attention-decomposition"><span class="header-section-number">2.2</span> Attention Decomposition</h2>
+<p>We can naturally break down the attention output into a sum over its attention heads: <span class="math display">\[
+a_\ell = \sum_{i=1}^{\text{\#heads}} H_\ell^i
+\]</span> Here, <span class="math inline">\(H_\ell^i\)</span> is the <span class="math inline">\(i\)</span>-th attention head’s output at layer <span class="math inline">\(\ell\)</span>. Additionally, an attention head’s output is a weighted sum of the <span class="math inline">\(OV\)</span> circuit outputs for each token in the sequence.<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a> The attention output at layer <span class="math inline">\(\ell\)</span> is: <span class="math display">\[
+H^i_\ell =  \sum_{p} \alpha_p \cdot OV_\ell^{i} \cdot \text{diag}\left(w_{\text{norm}}\right) \cdot \frac{h_{\ell - 1}^p}{s^p_{\ell-1}}
+\]</span> In this formula, <span class="math inline">\(\alpha_p\)</span> is the attention weight from the current token to the previous token <span class="math inline">\(p\)</span>. <span class="math inline">\(OV_\ell^i\)</span> is the OV matrix for the <span class="math inline">\(i\)</span>-th attention head at layer <span class="math inline">\(\ell\)</span>. <span class="math inline">\(h_{\ell-1}^p\)</span> is the hidden state of token <span class="math inline">\(p\)</span> from the previous layer <span class="math inline">\(\ell-1.\)</span> Finally, <span class="math inline">\(s^p_{\ell-1}\)</span> represents the normalization factor.</p>
+<p>By treating the attention weight <span class="math inline">\(\alpha_p\)</span> and normalization factor <span class="math inline">\(s^p_{\ell-1}\)</span> as constants, we can express the attention output as a sum of linear projections of the previous layer’s hidden state <span class="math inline">\(h_{\ell-1}^p\)</span>. To find the contribution of token <span class="math inline">\(p\)</span> via attention head <span class="math inline">\(i\)</span>, we use the following projection matrix: <span class="math display">\[
+P^{a_i}_\ell = P \cdot \left(\alpha_p I\right) \cdot OV_\ell^{i} \cdot \text{diag}\left(w_{\text{norm}}\right) \cdot \left({s^p_{\ell-1}}^{-1} I \right)
+\]</span> Note that we can further decompose <span class="math inline">\(h_{\ell-1}^p\)</span> into the sum of the token embedding and all previous layers’ residual outputs using residual stream decomposition.</p>
+</section>
+<section id="mlp-decomposition" class="level2" data-number="2.3">
+<h2 data-number="2.3" class="anchored" data-anchor-id="mlp-decomposition"><span class="header-section-number">2.3</span> MLP Decomposition</h2>
+<p>In transformer networks, the MLP layers consist of two linear transformations, <span class="math inline">\(W_{\text{up}}\)</span> and <span class="math inline">\(W_{\text{down}}\)</span>, with a non-linear function <span class="math inline">\(g\)</span> applied between them. The output of an MLP layer <span class="math inline">\(\ell\)</span> can be expressed as: <span class="math display">\[
+m_\ell = W_{\text{down}} \cdot g \cdot W_{\text{up}} \cdot \text{diag}\left(w_{\text{norm}}\right) \cdot \frac{h^a_\ell}{s^a_\ell}
+\]</span> Here, <span class="math inline">\(h^a_\ell\)</span> is the hidden state from the previous attention layer, <span class="math inline">\(w_{\text{norm}}\)</span> is a scaling vector, and <span class="math inline">\(s^a_\ell\)</span> is a normalization factor.</p>
+<p>The nonlinear point-wise function <span class="math inline">\(g\)</span> allows neural networks to learn complex transformations that cannot be represented by linear transformations. Here, we refer to the input dimensions of <span class="math inline">\(g\)</span> as neurons. We can break down the MLP output <span class="math inline">\(m_\ell\)</span> into a sum over individual neuron contributions: <span class="math display">\[
+m_\ell = \sum_{i=1}^{\text{\#neurons}}\text{diag}\left(W^i_{\text{down}}\right) \cdot g^i \cdot \text{diag}\left(W^i_{\text{up}}\right) \cdot \text{diag}\left(w_{\text{norm}}\right) \cdot \frac{h^a_\ell}{s^a_\ell}
+\]</span> To compute the contribution of the <span class="math inline">\(i\)</span>-th neuron in MLP layer <span class="math inline">\(\ell\)</span> to the logit output, we can treat <span class="math inline">\(g\)</span> and <span class="math inline">\(s_\ell^a\)</span> as constants and use following projection matrix: <span class="math display">\[
+P^{m_i}_\ell = P \cdot \text{diag}\left(W^i_{\text{down}}\right) \cdot \left(g^i I\right) \cdot \text{diag}\left(W^i_{\text{up}}\right) \cdot \text{diag} \left(w_{\text{norm}}\right) \cdot \left(\left(s^a_\ell\right)^{-1} I \right)
+\]</span> Using this projection matrix, we can pinpoint how much a single MLP neuron contributes to the model’s final output logits. Additionally, the same projection matrix allows us to trace how residual vectors from earlier layers influence the final output logits through that specific neuron via the residual stream decomposition.</p>
+</section>
+</section>
+<section id="examples" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Examples</h1>
+<p>In this section, we apply the <em>prisms</em> proposed earlier to explore how the <code>gemma-2b</code> model works internally in two examples. We use the gemma-2b model because it’s small enough to run on a standard PC without a dedicated GPU.</p>
+<p><strong>Retrieving capital city.</strong> First, let’s see how the model retrieves factual information to answer this simple question:</p>
+<pre><code>The capital city of France is ___</code></pre>
+<p>The model correctly predicts <code>▁Paris</code> as the most likely next token. To understand how it arrives at this prediction, we’ll use the prisms from the previous section.</p>
+<p>We start by using the residual prism to plot how much each layer contributes to the logit output for several candidate tokens (different capital cities). Comparing the prediction logit of the right answer to reasonable alternatives can reveal important information about the network’s decision process.</p>
+<p><a href="#fig-logit-per-layer" class="quarto-xref">Figure&nbsp;3</a> shows each layer’s logit contribution for multiple candidate tokens. Some strong signals stand out, with large positive and negative contributions in the first and last layers. These likely mean these layers play key roles in the model’s predictions. Interestingly, there’s a strong positive contribution at the start, followed by an equally strong negative contribution in the next layer (the first attention output). This might be because the <code>gemma-2b</code> model’s embedding and unembedding vectors are the same. So the input token strongly predicts itself as the output (due to the nature of the dot product operation). The network has to balance this out with a strong negative contribution in the next layer.</p>
+<p><a href="#fig-logit-per-layer" class="quarto-xref">Figure&nbsp;3</a> B zooms in to compare logit contributions at each layer for different targets. The <span class="math inline">\(a_{15}\)</span> contribution stands out between <code>▁Paris</code> and other candidates. At this layer, the attention output aligns much more with the unembedding vector of <code>▁Paris</code> than other candidates.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/city.ipynb" data-notebook-title="alt.themes.enable('dark')" data-notebook-cellid="cell-fig-logit-per-layer">
+<div id="cell-fig-logit-per-layer" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display" data-execution_count="7">
+<div id="fig-logit-per-layer" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-logit-per-layer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/city-fig-logit-per-layer-output-2.svg" class="lightbox" data-glightbox="description: .lightbox-desc-2" data-gallery="quarto-lightbox-gallery-2"><img src="index_files/figure-html/city-fig-logit-per-layer-output-2.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-logit-per-layer-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Logit contribution of each layer for different target tokens. Figure A shows the contributions of all layers, while Figure B zooms in on the contribution of the last layers.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>We think <span class="math inline">\(a_{15}\)</span> reads the correct output value from somewhere else via the attention mechanism, so we use the attention prism to decompose <span class="math inline">\(a_{15}\)</span> into smaller pieces. <a href="#fig-attn-logits" class="quarto-xref">Figure&nbsp;4</a> shows how much each input token influences the output logits via the attention layer 15. The <code>▁France</code> token heavily affects the output through attention head 6 of the layer, which makes very much sense as <code>▁France</code> should somehow inform the network to output the correct capital city.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/city.ipynb" data-notebook-title="alt.themes.enable('dark')" data-notebook-cellid="cell-fig-attn-logits">
+<div id="cell-fig-attn-logits" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display" data-execution_count="9">
+<div id="fig-attn-logits" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-attn-logits-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/city-fig-attn-logits-output-1.svg" class="lightbox" data-glightbox="description: .lightbox-desc-3" data-gallery="quarto-lightbox-gallery-3"><img src="index_files/figure-html/city-fig-attn-logits-output-1.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-attn-logits-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;4: Logit contribution of each input token through attention heads at layer 15.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>Next, we again use the residual prism to decompose the attention head 6 logits into smaller pieces. <a href="#fig-residual-attn-logits" class="quarto-xref">Figure&nbsp;5</a> shows how the residual outputs from all previous layers at the <code>▁France</code> token contribute to the output logit via attention head 6. Interestingly, the <code>▁France</code> embedding vector contributes the most to the output logit. This indicates that the embedding vector of <code>▁France</code> somehow already includes the information about its capital city, and this information can be read easily by attention head 6.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/city.ipynb" data-notebook-title="alt.themes.enable('dark')" data-notebook-cellid="cell-fig-residual-attn-logits">
+<div id="cell-fig-residual-attn-logits" class="cell" data-execution_count="13">
+<div class="cell-output cell-output-display" data-execution_count="13">
+<div id="fig-residual-attn-logits" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-residual-attn-logits-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/city-fig-residual-attn-logits-output-2.svg" class="lightbox" data-glightbox="description: .lightbox-desc-4" data-gallery="quarto-lightbox-gallery-4"><img src="index_files/figure-html/city-fig-residual-attn-logits-output-2.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-residual-attn-logits-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;5: Logit contribution of all residual outputs through attention head 6 at layer 15.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>One direct result of using prisms is that we have a linear projection that maps the <code>▁France</code> embedding vector to capital city candidates’ unembedding vectors. We think this linear projection is meaningful not just for <code>▁France</code>, but has similar effects on other country tokens too. To check this hypothesis, we apply the same projection matrix to other countries’ embedding vectors. <a href="#fig-country-embed-project-to-capital-city" class="quarto-xref">Figure&nbsp;6</a> shows the same matrix does indeed project other country names to their respective capitals.</p>
+<p>This suggests that the network learns to represent country names and capital city names in such a way that it can easily transform a country embedding to the capital city unembedding using a linear projection. We hypothesize that this observation can be generalized to other relations encoded by the network as well.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/city.ipynb" data-notebook-title="alt.themes.enable('dark')" data-notebook-cellid="cell-fig-country-embed-project-to-capital-city">
+<div id="cell-fig-country-embed-project-to-capital-city" class="cell" data-execution_count="17">
+<div class="cell-output cell-output-display" data-execution_count="17">
+<div id="fig-country-embed-project-to-capital-city" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-country-embed-project-to-capital-city-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/city-fig-country-embed-project-to-capital-city-output-1.svg" class="lightbox" data-glightbox="description: .lightbox-desc-5" data-gallery="quarto-lightbox-gallery-5"><img src="index_files/figure-html/city-fig-country-embed-project-to-capital-city-output-1.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-country-embed-project-to-capital-city-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;6: Linear projection from country embedding to capital city’s logit.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p><strong>Digit addition.</strong> Let’s explore how <code>gemma-2b</code> performs arithmetic by asking it to complete the following:</p>
+<pre><code>7+2=_</code></pre>
+<p>The model correctly predicts <code>9</code> as the next token. To understand how it achieves this, we employ our prisms toolbox. First, using the residual prism, we decompose the residual stream and examine the contributions of different layers for target tokens ranging from 0 to 9 (<a href="#fig-digit-residual-stream" class="quarto-xref">Figure&nbsp;7</a>). The MLP layer at layer 16 (m16) stands out, predicting <code>9</code> with a significantly higher logit value than other candidates. This substantial gap is unique to m16, indicating its crucial role in the model’s prediction of <code>9</code>.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/addition.ipynb" data-notebook-title="Create a DataFrame with the PCA coordinates and candidate labels" data-notebook-cellid="cell-fig-digit-residual-stream">
+<div id="cell-fig-digit-residual-stream" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display" data-execution_count="9">
+<div id="fig-digit-residual-stream" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-digit-residual-stream-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/addition-fig-digit-residual-stream-output-2.svg" class="lightbox" data-glightbox="description: .lightbox-desc-6" data-gallery="quarto-lightbox-gallery-6"><img src="index_files/figure-html/addition-fig-digit-residual-stream-output-2.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-digit-residual-stream-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;7: Contributions of different layers to the logit outputs of different candidates (from 0 to 9) using the residual prism.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>Next, we use the MLP prism to identify which neurons in m16 drive this behavior. Decomposing m16 into contributions from its 16,384 neurons, we find that most are inactive. Extracting the top active neurons, we observe that they account for the majority of m16’s activity. <a href="#fig-digit-top-neurons" class="quarto-xref">Figure&nbsp;8</a> shows these top neurons’ contributions to candidates from 0 to 9, revealing distinct patterns for each neuron. For example, neuron 10029 selectively differentiates odd and even numbers. Neuron 11042 selectively predicts <code>7</code>, while neuron 12552 selectively avoids predicting <code>7</code>. Neurons 15156 and 2363 show sine-wave patterns. While no single neuron dominantly predicts <code>9</code>, the combined effect of these neurons’ predictions peaks at <code>9</code>.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/addition.ipynb" data-notebook-title="Create a DataFrame with the PCA coordinates and candidate labels" data-notebook-cellid="cell-fig-digit-top-neurons">
+<div id="cell-fig-digit-top-neurons" class="cell" data-execution_count="17">
+<div class="cell-output cell-output-display" data-execution_count="17">
+<div id="fig-digit-top-neurons" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-digit-top-neurons-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/addition-fig-digit-top-neurons-output-1.svg" class="lightbox" data-glightbox="description: .lightbox-desc-7" data-gallery="quarto-lightbox-gallery-7"><img src="index_files/figure-html/addition-fig-digit-top-neurons-output-1.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-digit-top-neurons-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;8: Top neuron contributions for different targets ranging from 0 to 9.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>Note that the neurons’ contributions to the target logits are simply linear projections onto different target token unembedding vectors. The neuron activity patterns in <a href="#fig-digit-top-neurons" class="quarto-xref">Figure&nbsp;8</a> are likely encoded in the target token unembeddings; as such, these patterns can be easily extracted using a linear projection. When we visualize the digit unembedding space in 2D (<a href="#fig-digit-unembed" class="quarto-xref">Figure&nbsp;9</a>), we discover that the numbers form a heart-like shape with reflectional symmetry around the <code>0</code>-<code>5</code> axis.</p>
+<div class="quarto-embed-nb-cell" data-notebook="/Users/tanthong/logit-prism/addition.ipynb" data-notebook-title="Create a DataFrame with the PCA coordinates and candidate labels" data-notebook-cellid="cell-fig-digit-unembed">
+<div id="cell-fig-digit-unembed" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display" data-execution_count="5">
+<div id="fig-digit-unembed" class="quarto-figure quarto-figure-center quarto-float anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-digit-unembed-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<a href="index_files/figure-html/addition-fig-digit-unembed-output-1.svg" class="lightbox" data-glightbox="description: .lightbox-desc-8" data-gallery="quarto-lightbox-gallery-8"><img src="index_files/figure-html/addition-fig-digit-unembed-output-1.svg" class="img-fluid figure-img"></a>
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-digit-unembed-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;9: 2D projection of digit unembedding vectors. The embeddings are projected to 2D space using PCA. Each point represents a digit, and the points are connected in numerical order.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p>Our hypothesis is that transformer networks encode templates for outputs in the unembedding space. The MLP layer then selectively reads these templates based on their linear projection <span class="math inline">\(W_\text{down}\)</span>. By triggering a specific combination of neurons, each representing a template, the network ensures the logits reach their maximum value for the tokens with the highest probability.</p>
+</section>
+<section id="related-work" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Related Work</h1>
+<p>Our work builds upon and is inspired by several previous works. The logit lens method <span class="citation" data-cites="logitlens">(<a href="#ref-logitlens" role="doc-biblioref">nostalgebraist 2020</a>)</span> is closely related, allowing exploration of the residual stream in transformer networks by treating middle layer hidden states as the final layer output. This provides insights into how transformers iteratively refine their predictions. The author posits that decoder-only transformers operate mainly in a predictive space.</p>
+<p>The tuned lens method <span class="citation" data-cites="belrose2023eliciting">(<a href="#ref-belrose2023eliciting" role="doc-biblioref">Belrose et al. 2023</a>)</span> improves upon the logit lens approach by addressing issues such as biased estimates and not working as well with some model families. Their key innovation is adding learnable parameters when reading logits from intermediate layers.</p>
+<p>The path expansion trick used by <span class="citation" data-cites="elhage2021mathematical">(<a href="#ref-elhage2021mathematical" role="doc-biblioref">Elhage et al. 2021</a>)</span> decomposes one- and two-layer transformers into sums of different computation paths. Our approach is similar but treats each component independently to avoid combinatorial explosion in larger networks.</p>
+<p><span class="citation" data-cites="wang2022interpretability">(<a href="#ref-wang2022interpretability" role="doc-biblioref">Wang et al. 2022</a>)</span> examines GPT-2 circuits for the Indirect Object Identification task, using the last hidden state norm to determine each layer’s contribution to the output, similar to our residual prism. Their analysis of the difference in logits between candidates is, in fact, very similar to our candidate comparison.</p>
+<p>Our findings in the example section align with previous research in several ways. <span class="citation" data-cites="mikolov2013efficient">(<a href="#ref-mikolov2013efficient" role="doc-biblioref">Mikolov et al. 2013</a>)</span> demonstrate that their Word2vec technique captures relationships between entities, such as countries and their capital cities, as directions in the embedding space. They show that this holds true for various types of relationships. This aligns with our observation of how the gemma-2b model represents country embeddings and capital city unembeddings.</p>
+<p>Numerous studies <span class="citation" data-cites="zhang2021moefication mirzadeh2023relu zhang2024relu2">(<a href="#ref-zhang2021moefication" role="doc-biblioref">Zhang et al. 2021</a>, <a href="#ref-zhang2024relu2" role="doc-biblioref">2024</a>; <a href="#ref-mirzadeh2023relu" role="doc-biblioref">Mirzadeh et al. 2023</a>)</span> have empirically observed sparse activations in MLP neurons, which is consistent with our MLP analysis. However, the primary focus of these works is on leveraging the sparsity to accelerate model inference rather than interpreting the model’s behavior.</p>
+<p><span class="citation" data-cites="geva2021transformer">(<a href="#ref-geva2021transformer" role="doc-biblioref">Geva et al. 2021</a>)</span> suggest that MLP layers in transformer networks act as key-value memories, where the <span class="math inline">\(W_\text{up}\)</span> matrix (the key) detects input patterns and the <span class="math inline">\(W_\text{down}\)</span> matrix (the value) boosts the likelihood of tokens expected to come after the input pattern. In our examples, we show that MLP neurons can learn understandable output templates for digit tokens. <span class="citation" data-cites="nanda2023progress">(<a href="#ref-nanda2023progress" role="doc-biblioref">Nanda et al. 2023</a>)</span> study how a simple 1-layer transformer network carries out modular addition task. They discover that the network’s MLP neurons use constructive interference of multiple output templates to shape the output distribution, making it peak at the right answer.</p>
+</section>
+<section id="conclusion" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Conclusion</h1>
+<p>This paper introduces logit prisms, a simple but effective way to break down transformer outputs, making them easier to interpret. With logit prisms, we can closely examine how the input embeddings, attention heads, and MLP neurons each contribute to the final output. Applying logit prisms to the <code>gemma-2b</code> model reveals valuable insights into how it works internally.</p>
+<div class="hidden" aria-hidden="true">
+<span class="glightbox-desc lightbox-desc-1">Figure&nbsp;1: An illustration of a “logit” prism decomposing logit into different components (generated by DALL-E)</span>
+<span class="glightbox-desc lightbox-desc-2">Figure&nbsp;3: Logit contribution of each layer for different target tokens. Figure A shows the contributions of all layers, while Figure B zooms in on the contribution of the last layers.</span>
+<span class="glightbox-desc lightbox-desc-3">Figure&nbsp;4: Logit contribution of each input token through attention heads at layer 15.</span>
+<span class="glightbox-desc lightbox-desc-4">Figure&nbsp;5: Logit contribution of all residual outputs through attention head 6 at layer 15.</span>
+<span class="glightbox-desc lightbox-desc-5">Figure&nbsp;6: Linear projection from country embedding to capital city’s logit.</span>
+<span class="glightbox-desc lightbox-desc-6">Figure&nbsp;7: Contributions of different layers to the logit outputs of different candidates (from 0 to 9) using the residual prism.</span>
+<span class="glightbox-desc lightbox-desc-7">Figure&nbsp;8: Top neuron contributions for different targets ranging from 0 to 9.</span>
+<span class="glightbox-desc lightbox-desc-8">Figure&nbsp;9: 2D projection of digit unembedding vectors. The embeddings are projected to 2D space using PCA. Each point represents a digit, and the points are connected in numerical order.</span>
+</div>
+
+</section>
+
+
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-belrose2023eliciting" class="csl-entry" role="listitem">
+Belrose, Nora, Zach Furman, Logan Smith, Danny Halawi, Igor Ostrovsky, Lev McKinney, Stella Biderman, and Jacob Steinhardt. 2023. <span>“Eliciting Latent Predictions from Transformers with the Tuned Lens.”</span> <a href="https://arxiv.org/abs/2303.08112">https://arxiv.org/abs/2303.08112</a>.
+</div>
+<div id="ref-brown2020language" class="csl-entry" role="listitem">
+Brown, Tom B., Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, et al. 2020. <span>“Language Models Are Few-Shot Learners.”</span> <a href="https://arxiv.org/abs/2005.14165">https://arxiv.org/abs/2005.14165</a>.
+</div>
+<div id="ref-elhage2021mathematical" class="csl-entry" role="listitem">
+Elhage, Nelson, Neel Nanda, Catherine Olsson, Tom Henighan, Nicholas Joseph, Ben Mann, Amanda Askell, et al. 2021. <span>“A Mathematical Framework for Transformer Circuits.”</span> <em>Transformer Circuits Thread</em>.
+</div>
+<div id="ref-geva2021transformer" class="csl-entry" role="listitem">
+Geva, Mor, Roei Schuster, Jonathan Berant, and Omer Levy. 2021. <span>“Transformer Feed-Forward Layers Are Key-Value Memories.”</span> <a href="https://arxiv.org/abs/2012.14913">https://arxiv.org/abs/2012.14913</a>.
+</div>
+<div id="ref-mikolov2013efficient" class="csl-entry" role="listitem">
+Mikolov, Tomas, Kai Chen, Greg Corrado, and Jeffrey Dean. 2013. <span>“Efficient Estimation of Word Representations in Vector Space.”</span> <a href="https://arxiv.org/abs/1301.3781">https://arxiv.org/abs/1301.3781</a>.
+</div>
+<div id="ref-mirzadeh2023relu" class="csl-entry" role="listitem">
+Mirzadeh, Iman, Keivan Alizadeh, Sachin Mehta, Carlo C Del Mundo, Oncel Tuzel, Golnoosh Samei, Mohammad Rastegari, and Mehrdad Farajtabar. 2023. <span>“ReLU Strikes Back: Exploiting Activation Sparsity in Large Language Models.”</span> <a href="https://arxiv.org/abs/2310.04564">https://arxiv.org/abs/2310.04564</a>.
+</div>
+<div id="ref-nanda2023progress" class="csl-entry" role="listitem">
+Nanda, Neel, Lawrence Chan, Tom Lieberum, Jess Smith, and Jacob Steinhardt. 2023. <span>“Progress Measures for Grokking via Mechanistic Interpretability.”</span> <a href="https://arxiv.org/abs/2301.05217">https://arxiv.org/abs/2301.05217</a>.
+</div>
+<div id="ref-logitlens" class="csl-entry" role="listitem">
+nostalgebraist. 2020. <span>“Interpreting GPT: The Logit Lens.”</span> <a href="https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens">https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens</a>.
+</div>
+<div id="ref-vaswani2017attention" class="csl-entry" role="listitem">
+Vaswani, Ashish, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017. <span>“Attention Is All You Need.”</span> <a href="https://arxiv.org/abs/1706.03762">https://arxiv.org/abs/1706.03762</a>.
+</div>
+<div id="ref-wang2022interpretability" class="csl-entry" role="listitem">
+Wang, Kevin, Alexandre Variengien, Arthur Conmy, Buck Shlegeris, and Jacob Steinhardt. 2022. <span>“Interpretability in the Wild: A Circuit for Indirect Object Identification in GPT-2 Small.”</span> <a href="https://arxiv.org/abs/2211.00593">https://arxiv.org/abs/2211.00593</a>.
+</div>
+<div id="ref-zhang2021moefication" class="csl-entry" role="listitem">
+Zhang, Zhengyan, Yankai Lin, Zhiyuan Liu, Peng Li, Maosong Sun, and Jie Zhou. 2021. <span>“MoEfication: Transformer Feed-Forward Layers Are Mixtures of Experts.”</span> <a href="https://arxiv.org/abs/2110.01786">https://arxiv.org/abs/2110.01786</a>.
+</div>
+<div id="ref-zhang2024relu2" class="csl-entry" role="listitem">
+Zhang, Zhengyan, Yixin Song, Guanghui Yu, Xu Han, Yankai Lin, Chaojun Xiao, Chenyang Song, Zhiyuan Liu, Zeyu Mi, and Maosong Sun. 2024. <span>“ReLU<span class="math inline">\(^2\)</span> Wins: Discovering Efficient Activation Functions for Sparse LLMs.”</span> <a href="https://arxiv.org/abs/2402.03804">https://arxiv.org/abs/2402.03804</a>.
+</div>
+</div></section><section id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes"><h2 class="anchored quarto-appendix-heading">Footnotes</h2>
+
+<ol>
+<li id="fn1"><p>The <span class="math inline">\(OV\)</span> circuit has two matrices: <span class="math inline">\(V\)</span> reads from the residual stream, and <span class="math inline">\(O\)</span> writes to it.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</section><section class="quarto-appendix-contents" id="quarto-citation"><h2 class="anchored quarto-appendix-heading">Citation</h2><div><div class="quarto-appendix-secondary-label">BibTeX citation:</div><pre class="sourceCode code-with-copy quarto-appendix-bibtex"><code class="sourceCode bibtex">@misc{nguyen2024prisms,
+  author = {Nguyễn, Thông},
+  title = {Logit {Prisms:} {Decomposing} {Transformer} {Outputs} for
+    {Mechanistic} {Interpretability}},
+  date = {2024-06-17},
+  langid = {en},
+  abstract = {We introduce a straightforward yet effective method to
+    break down transformer outputs into individual components. By
+    treating the model’s non-linear activations as constants, we can
+    decompose the output in a linear fashion, expressing it as a sum of
+    contributions. These contributions can be easily calculated using
+    linear projections. We call this approach “logit prisms” and apply
+    it to analyze the residual streams, attention layers, and MLP layers
+    within transformer models. Through two illustrative examples, we
+    demonstrate how these prisms provide valuable insights into the
+    inner workings of the `gemma-2b` model.}
+}
+</code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre><div class="quarto-appendix-secondary-label">For attribution, please cite this work as:</div><div id="ref-nguyen2024prisms" class="csl-entry quarto-appendix-citeas" role="listitem">
+Nguyễn, Thông. 2024. <span>“Logit Prisms: Decomposing Transformer
+Outputs for Mechanistic Interpretability.”</span>
+</div></div></section></div></main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const disableStylesheet = (stylesheets) => {
+    for (let i=0; i < stylesheets.length; i++) {
+      const stylesheet = stylesheets[i];
+      stylesheet.rel = 'prefetch';
+    }
+  }
+  const enableStylesheet = (stylesheets) => {
+    for (let i=0; i < stylesheets.length; i++) {
+      const stylesheet = stylesheets[i];
+      stylesheet.rel = 'stylesheet';
+    }
+  }
+  const manageTransitions = (selector, allowTransitions) => {
+    const els = window.document.querySelectorAll(selector);
+    for (let i=0; i < els.length; i++) {
+      const el = els[i];
+      if (allowTransitions) {
+        el.classList.remove('notransition');
+      } else {
+        el.classList.add('notransition');
+      }
+    }
+  }
+  const toggleGiscusIfUsed = (isAlternate, darkModeDefault) => {
+    const baseTheme = document.querySelector('#giscus-base-theme')?.value ?? 'light';
+    const alternateTheme = document.querySelector('#giscus-alt-theme')?.value ?? 'dark';
+    let newTheme = '';
+    if(darkModeDefault) {
+      newTheme = isAlternate ? baseTheme : alternateTheme;
+    } else {
+      newTheme = isAlternate ? alternateTheme : baseTheme;
+    }
+    const changeGiscusTheme = () => {
+      // From: https://github.com/giscus/giscus/issues/336
+      const sendMessage = (message) => {
+        const iframe = document.querySelector('iframe.giscus-frame');
+        if (!iframe) return;
+        iframe.contentWindow.postMessage({ giscus: message }, 'https://giscus.app');
+      }
+      sendMessage({
+        setConfig: {
+          theme: newTheme
+        }
+      });
+    }
+    const isGiscussLoaded = window.document.querySelector('iframe.giscus-frame') !== null;
+    if (isGiscussLoaded) {
+      changeGiscusTheme();
+    }
+  }
+  const toggleColorMode = (alternate) => {
+    // Switch the stylesheets
+    const alternateStylesheets = window.document.querySelectorAll('link.quarto-color-scheme.quarto-color-alternate');
+    manageTransitions('#quarto-margin-sidebar .nav-link', false);
+    if (alternate) {
+      enableStylesheet(alternateStylesheets);
+      for (const sheetNode of alternateStylesheets) {
+        if (sheetNode.id === "quarto-bootstrap") {
+          toggleBodyColorMode(sheetNode);
+        }
+      }
+    } else {
+      disableStylesheet(alternateStylesheets);
+      toggleBodyColorPrimary();
+    }
+    manageTransitions('#quarto-margin-sidebar .nav-link', true);
+    // Switch the toggles
+    const toggles = window.document.querySelectorAll('.quarto-color-scheme-toggle');
+    for (let i=0; i < toggles.length; i++) {
+      const toggle = toggles[i];
+      if (toggle) {
+        if (alternate) {
+          toggle.classList.add("alternate");     
+        } else {
+          toggle.classList.remove("alternate");
+        }
+      }
+    }
+    // Hack to workaround the fact that safari doesn't
+    // properly recolor the scrollbar when toggling (#1455)
+    if (navigator.userAgent.indexOf('Safari') > 0 && navigator.userAgent.indexOf('Chrome') == -1) {
+      manageTransitions("body", false);
+      window.scrollTo(0, 1);
+      setTimeout(() => {
+        window.scrollTo(0, 0);
+        manageTransitions("body", true);
+      }, 40);  
+    }
+  }
+  const isFileUrl = () => { 
+    return window.location.protocol === 'file:';
+  }
+  const hasAlternateSentinel = () => {  
+    let styleSentinel = getColorSchemeSentinel();
+    if (styleSentinel !== null) {
+      return styleSentinel === "alternate";
+    } else {
+      return false;
+    }
+  }
+  const setStyleSentinel = (alternate) => {
+    const value = alternate ? "alternate" : "default";
+    if (!isFileUrl()) {
+      window.localStorage.setItem("quarto-color-scheme", value);
+    } else {
+      localAlternateSentinel = value;
+    }
+  }
+  const getColorSchemeSentinel = () => {
+    if (!isFileUrl()) {
+      const storageValue = window.localStorage.getItem("quarto-color-scheme");
+      return storageValue != null ? storageValue : localAlternateSentinel;
+    } else {
+      return localAlternateSentinel;
+    }
+  }
+  const darkModeDefault = false;
+  let localAlternateSentinel = darkModeDefault ? 'alternate' : 'default';
+  // Dark / light mode switch
+  window.quartoToggleColorScheme = () => {
+    // Read the current dark / light value 
+    let toAlternate = !hasAlternateSentinel();
+    toggleColorMode(toAlternate);
+    setStyleSentinel(toAlternate);
+    toggleGiscusIfUsed(toAlternate, darkModeDefault);
+  };
+  // Ensure there is a toggle, if there isn't float one in the top right
+  if (window.document.querySelector('.quarto-color-scheme-toggle') === null) {
+    const a = window.document.createElement('a');
+    a.classList.add('top-right');
+    a.classList.add('quarto-color-scheme-toggle');
+    a.href = "";
+    a.onclick = function() { try { window.quartoToggleColorScheme(); } catch {} return false; };
+    const i = window.document.createElement("i");
+    i.classList.add('bi');
+    a.appendChild(i);
+    window.document.body.appendChild(a);
+  }
+  // Switch to dark mode if need be
+  if (hasAlternateSentinel()) {
+    toggleColorMode(true);
+  } else {
+    toggleColorMode(false);
+  }
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp("^(?:http:|https:)\/\/www\.quarto\.org\/custom");
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+          // target, if specified
+          link.setAttribute("target", "_blank");
+          if (link.getAttribute("rel") === null) {
+            link.setAttribute("rel", "noopener");
+          }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","loop":false});
+window.onload = () => {
+  lightboxQuarto.on('slide_before_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    const href = trigger.getAttribute('href');
+    if (href !== null) {
+      const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+      if (imgEl !== null) {
+        const srcAttr = imgEl.getAttribute("src");
+        if (srcAttr && srcAttr.startsWith("data:")) {
+          slideConfig.href = srcAttr;
+        }
+      }
+    } 
+  });
+
+  lightboxQuarto.on('slide_after_load', (data) => {
+    const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+    if (window.Quarto?.typesetMath) {
+      window.Quarto.typesetMath(slideNode);
+    }
+  });
+
+};
+          </script>
+
+
+
+
+</body></html>
